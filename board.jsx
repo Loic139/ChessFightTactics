@@ -56,6 +56,21 @@ function ChessBoard({
 }) {
   const T = BOARD_THEMES[theme] || BOARD_THEMES.green;
   const cell = size / 8;
+  const boardRef = useRef(null);
+  const [touchDrag, setTouchDrag] = useState(null); // { sq, x, y }
+
+  function sqFromPoint(x, y) {
+    if (!boardRef.current) return null;
+    const rect = boardRef.current.getBoundingClientRect();
+    const bx = x - rect.left;
+    const by = y - rect.top;
+    if (bx < 0 || by < 0 || bx >= size || by >= size) return null;
+    const ff = Math.floor(bx / cell);
+    const rr = 7 - Math.floor(by / cell);
+    const f = orientation === 'white' ? ff : 7 - ff;
+    const r = orientation === 'white' ? rr : 7 - rr;
+    return r * 8 + f;
+  }
 
   const squares = [];
   for (let r = 7; r >= 0; r--) {
@@ -188,6 +203,8 @@ function ChessBoard({
     const draggable = canDrag(sq);
     const isSelected = selected === sq;
 
+    const isTouchDragging = touchDrag?.sq === sq;
+
     return (
       <div
         key={`p-${sq}`}
@@ -195,9 +212,34 @@ function ChessBoard({
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('application/json', JSON.stringify({ fromSq: sq }));
-          // translucent ghost: default
         }}
         onClick={(e) => { e.stopPropagation(); onSquareClick(sq); }}
+        onTouchStart={(e) => {
+          if (!canDrag(sq)) return;
+          e.preventDefault();
+          const touch = e.touches[0];
+          setTouchDrag({ sq, x: touch.clientX, y: touch.clientY });
+          onSquareClick(sq);
+        }}
+        onTouchMove={(e) => {
+          if (!touchDrag || touchDrag.sq !== sq) return;
+          e.preventDefault();
+          const touch = e.touches[0];
+          const hoveredSq = sqFromPoint(touch.clientX, touch.clientY);
+          setTouchDrag(prev => ({ ...prev, x: touch.clientX, y: touch.clientY }));
+          if (hoveredSq !== null) setHoverSq(hoveredSq);
+        }}
+        onTouchEnd={(e) => {
+          if (!touchDrag || touchDrag.sq !== sq) return;
+          e.preventDefault();
+          const touch = e.changedTouches[0];
+          const toSq = sqFromPoint(touch.clientX, touch.clientY);
+          setTouchDrag(null);
+          setHoverSq(null);
+          if (toSq !== null && toSq !== sq) {
+            onDropOnSquare(toSq, { fromSq: sq });
+          }
+        }}
         style={{
           position: 'absolute',
           left: ff * cell,
@@ -206,9 +248,10 @@ function ChessBoard({
           height: cell,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: draggable ? 'grab' : 'pointer',
-          transition: 'left 0.18s ease, top 0.18s ease',
+          transition: isTouchDragging ? 'none' : 'left 0.18s ease, top 0.18s ease',
           transform: isSelected ? 'scale(1.05)' : 'scale(1)',
           filter: isSelected ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))' : 'none',
+          opacity: isTouchDragging ? 0.3 : 1,
           zIndex: isSelected ? 3 : 2,
           pointerEvents: 'auto',
         }}
@@ -218,8 +261,10 @@ function ChessBoard({
     );
   });
 
+  const touchPiece = touchDrag && board[touchDrag.sq];
+
   return (
-    <div style={{
+    <div ref={boardRef} style={{
       position: 'relative',
       width: size,
       height: size,
@@ -230,6 +275,22 @@ function ChessBoard({
     }}>
       {squares}
       {pieces}
+      {touchPiece && (
+        <div style={{
+          position: 'fixed',
+          left: touchDrag.x - cell * 0.6,
+          top: touchDrag.y - cell * 0.6,
+          width: cell * 1.2,
+          height: cell * 1.2,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+          zIndex: 9999,
+          filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.5))',
+          transform: 'scale(1.15)',
+        }}>
+          <ChessPiece type={touchPiece.type} color={touchPiece.color} size={cell * 1.0} />
+        </div>
+      )}
     </div>
   );
 }

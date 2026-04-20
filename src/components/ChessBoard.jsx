@@ -59,6 +59,7 @@ export default function ChessBoard({
       squares.push(
         <div
           key={sq}
+          data-board-sq={sq}
           onClick={() => onSquareClick(sq)}
           onDragOver={(e) => { e.preventDefault(); setHoverSq(sq); }}
           onDragLeave={() => setHoverSq(null)}

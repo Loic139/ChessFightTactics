@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { T, FONTS } from '../theme.js';
 import { LEVELS, rollShop, buildLevelBoard } from '../levels.js';
 import { findKing, isAttacked } from '../engine.js';
 import sfx from '../sfx.js';
 import ChessBoard from './ChessBoard.jsx';
-import ChessPiece from './ChessPiece.jsx';
+import ChessPiece, { pieceSrc } from './ChessPiece.jsx';
 
 function checkPositionLegality(baseBoard, placed) {
   const board = { ...baseBoard };
@@ -25,6 +25,7 @@ export default function PrepScreen({ gameState, setGameState, onStart, onBack })
   const [spent, setSpent] = useState(0);
   const [error, setError] = useState(null);
   const [hoverSq, setHoverSq] = useState(null);
+  const [touchShopDrag, setTouchShopDrag] = useState(null); // { piece, shopIdx, x, y }
 
   const remaining = gameState.budget - spent;
   const baseBoard = buildLevelBoard(level);
@@ -208,9 +209,38 @@ export default function PrepScreen({ gameState, setGameState, onStart, onBack })
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           {gameState.shop.map((piece, i) => (
-            <ShopCard key={i} index={i} piece={piece} canAfford={remaining >= piece.price} />
+            <ShopCard
+              key={i}
+              index={i}
+              piece={piece}
+              canAfford={remaining >= piece.price}
+              onTouchDragStart={(x, y) => setTouchShopDrag({ piece, shopIdx: i, x, y })}
+              onTouchDragMove={(x, y) => setTouchShopDrag(prev => prev ? { ...prev, x, y } : null)}
+              onTouchDragEnd={(x, y) => {
+                setTouchShopDrag(null);
+                const els = document.elementsFromPoint(x, y);
+                const sqEl = els.find(el => el.dataset?.boardSq != null);
+                if (sqEl) onDropOnSquare(+sqEl.dataset.boardSq, { fromShop: true, piece, shopIdx: i });
+              }}
+            />
           ))}
         </div>
+        {touchShopDrag && (
+          <img
+            src={pieceSrc(touchShopDrag.piece.type, 'w')}
+            draggable={false}
+            style={{
+              position: 'fixed',
+              left: touchShopDrag.x - 30,
+              top: touchShopDrag.y - 30,
+              width: 60, height: 60,
+              pointerEvents: 'none',
+              zIndex: 9999,
+              filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.5))',
+              transform: 'scale(1.2)',
+            }}
+          />
+        )}
       </div>
 
       {/* CTA */}
@@ -249,7 +279,7 @@ function BudgetChip({ label, amount, color }) {
   );
 }
 
-function ShopCard({ piece, index, canAfford }) {
+function ShopCard({ piece, index, canAfford, onTouchDragStart, onTouchDragMove, onTouchDragEnd }) {
   const card = (
     <div style={{
       width: 78, padding: '10px 6px',
@@ -280,8 +310,29 @@ function ShopCard({ piece, index, canAfford }) {
     <div
       draggable
       onDragStart={(e) => {
+        const ghost = document.createElement('img');
+        ghost.src = pieceSrc(piece.type, 'w');
+        ghost.style.cssText = 'position:fixed;top:-200px;left:-200px;width:56px;height:56px;';
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 28, 28);
+        setTimeout(() => document.body.removeChild(ghost), 0);
         e.dataTransfer.effectAllowed = 'copy';
         e.dataTransfer.setData('application/json', JSON.stringify({ fromShop: true, piece, shopIdx: index }));
+      }}
+      onTouchStart={(e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        onTouchDragStart(t.clientX, t.clientY);
+      }}
+      onTouchMove={(e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        onTouchDragMove(t.clientX, t.clientY);
+      }}
+      onTouchEnd={(e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        onTouchDragEnd(t.clientX, t.clientY);
       }}
     >
       {card}
