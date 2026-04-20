@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chess Puzzle · Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    min-height: 100vh;
+    background: #0A0D12;
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    color: #E8ECF2;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(60,80,50,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 100%, rgba(50,40,60,0.12) 0%, transparent 60%),
+      #0A0D12;
+    min-height: 100vh;
+  }
+  * { box-sizing: border-box; }
+
+  .stage {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 16px 48px;
+    gap: 20px;
+  }
+  .intro {
+    max-width: 980px; width: 100%;
+    display: flex; gap: 20px; align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .intro h1 {
+    margin: 0;
+    font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+    color: #E8ECF2;
+  }
+  .intro h1 .accent {
+    background: linear-gradient(90deg, #7DD87D, #E8B55C);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .intro p {
+    margin: 4px 0 0; color: rgba(232,236,242,0.55);
+    font-size: 13px; line-height: 1.6; max-width: 540px;
+  }
+  .intro .badge {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 2px;
+    color: rgba(232,236,242,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 6px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.02);
+  }
+
+  .devices {
+    display: flex; gap: 28px; flex-wrap: wrap; justify-content: center;
+    align-items: flex-start;
+  }
+  .device-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .device-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 2px; font-weight: 700;
+    color: rgba(232,236,242,0.5);
+  }
+
+  /* Hide the starter device chrome's nav since we draw our own */
+  .ios-shell {
+    width: 402px; height: 874px;
+    border-radius: 48px;
+    background: #0B0F14;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 40px 80px rgba(0,0,0,0.5),
+      0 0 0 12px #1a1a1e,
+      0 0 0 13px rgba(255,255,255,0.05),
+      0 0 0 14px #0a0a0c;
+  }
+  .ios-shell::before {
+    content: '';
+    position: absolute;
+    top: 11px; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 34px; border-radius: 20px;
+    background: #000; z-index: 100;
+  }
+  .ios-shell::after {
+    content: '';
+    position: absolute;
+    bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 135px; height: 5px; border-radius: 3px;
+    background: rgba(255,255,255,0.35); z-index: 100;
+    pointer-events: none;
+  }
+  .ios-inner {
+    position: absolute; inset: 0;
+    padding-top: 54px;
+    display: flex; flex-direction: column;
+  }
+
+  /* Tweaks panel */
+  .tweaks {
+    position: fixed;
+    bottom: 16px; right: 16px;
+    background: rgba(20,27,36,0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 12px;
+    min-width: 220px;
+    z-index: 1000;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  }
+  .tweaks.on { display: flex; }
+  .tweaks h3 {
+    margin: 0;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 2px; color: rgba(232,236,242,0.5);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .tweaks .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .tweaks .row label { color: rgba(232,236,242,0.85); }
+  .seg {
+    display: inline-flex; background: rgba(255,255,255,0.05);
+    border-radius: 8px; padding: 2px; gap: 2px;
+  }
+  .seg button {
+    border: none; background: transparent;
+    padding: 5px 10px; border-radius: 6px;
+    color: rgba(232,236,242,0.6); font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+  }
+  .seg button.active {
+    background: rgba(255,255,255,0.12);
+    color: #E8ECF2;
+  }
+
+  /* Scrollbar cleanup inside devices */
+  .ios-inner ::-webkit-scrollbar { display: none; }
+
+  .sound-toggle {
+    position: fixed;
+    top: 16px; right: 16px;
+    z-index: 500;
+    width: 38px; height: 38px; border-radius: 999px;
+    background: rgba(20,27,36,0.9);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(232,236,242,0.85);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  }
+  .sound-toggle:hover { background: rgba(30,40,55,0.95); }
+  .sound-toggle.muted { color: rgba(232,92,92,0.9); }
+</style>
+</head>
+<body>
+
+<button class="sound-toggle" id="sound-btn" title="Son" aria-label="Son">
+  <svg id="sound-on" width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <path d="M3 6.5v5h3l4 3V3.5l-4 3H3z" fill="currentColor"/>
+    <path d="M12 6c1 .8 1.5 1.9 1.5 3S13 11.2 12 12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M14 4c1.8 1.3 3 3 3 5s-1.2 3.7-3 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+  </svg>
+  <svg id="sound-off" width="18" height="18" viewBox="0 0 18 18" fill="none" style="display:none">
+    <path d="M3 6.5v5h3l4 3V3.5l-4 3H3z" fill="currentColor"/>
+    <path d="M13 6l4 6M17 6l-4 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>
+</button>
+
+<div class="stage">
+  <div class="intro">
+    <div>
+      <h1>Chess Puzzle <span class="accent">— Redesign</span></h1>
+      <p>Refreshed interfaces, custom piece glyphs and a tournament-grade board.
+         Prep phase, live game and outcome flow, all interactive — drag pieces from
+         the shop, play against the opponent, promote pawns.</p>
+    </div>
+    <div class="badge">3 SCREENS · FULLY INTERACTIVE</div>
+  </div>
+
+  <div class="devices">
+    <div class="device-wrap">
+      <div class="device-label">① PRÉPARATION · BOUTIQUE</div>
+      <div class="ios-shell">
+        <div id="app-prep" class="ios-inner"></div>
+      </div>
+    </div>
+    <div class="device-wrap">
+      <div class="device-label">② PARTIE</div>
+      <div class="ios-shell">
+        <div id="app-game" class="ios-inner"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tweaks panel -->
+<div class="tweaks" id="tweaks">
+  <h3>TWEAKS</h3>
+  <div class="row">
+    <label>Thème de l'échiquier</label>
+  </div>
+  <div class="seg" id="theme-seg">
+    <button data-v="green">Vert</button>
+    <button data-v="wood">Bois</button>
+    <button data-v="slate">Ardoise</button>
+  </div>
+  <div class="row">
+    <label>Niveau de départ</label>
+    <div class="seg" id="level-seg">
+      <button data-v="0">1</button>
+      <button data-v="1">2</button>
+      <button data-v="2">3</button>
+    </div>
+  </div>
+  <div class="row">
+    <label>Style des pièces</label>
+  </div>
+  <div id="pieceset-picker" style="display:flex; gap:6px;"></div>
+  <div class="row">
+    <label>Reset parties</label>
+    <button id="reset-btn" style="background:rgba(232,92,92,0.14); color:#E85C5C; border:1px solid rgba(232,92,92,0.3); padding:4px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-family:'JetBrains Mono',monospace;">RESET</button>
+  </div>
+</div>
+
+<!-- Tweak defaults (host-editable) -->
+<script>
+window.TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "slate",
+  "startLevel": 2,
+  "pieceSet": "cburnett"
+}/*EDITMODE-END*/;
+</script>
+
+<!-- Libraries -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Sound effects (Web Audio, synthesized) -->
+<script src="sfx.js"></script>
+
+<!-- Our JSX modules -->
+<script type="text/babel" src="pieces.jsx"></script>
+<script type="text/babel" src="engine.jsx"></script>
+<script type="text/babel" src="board.jsx"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel" src="prep.jsx"></script>
+<script type="text/babel" src="game.jsx"></script>
+
+<script type="text/babel">
+// ── Root App: orchestrates screen transitions inside a phone frame ───────
+const { useState: _uS, useEffect: _uE } = React;
+
+function App({ startLevel, theme, initialPhase }) {
+  const [gameState, setGameState] = _uS(() => ({
+    levelIdx: startLevel || 0,
+    budget: LEVELS[startLevel || 0].startingBudget,
+    shop: rollShop(),
+    theme: theme || 'green',
+  }));
+  const [phase, setPhase] = _uS(initialPhase || 'prep'); // prep | game | result
+  const [gameBoard, setGameBoard] = _uS(null);
+  const [result, setResult] = _uS(null);
+
+  // Sync theme from outer tweaks
+  _uE(() => {
+    setGameState(g => ({ ...g, theme }));
+  }, [theme]);
+
+  _uE(() => {
+    // Reset to prep when level changes
+    setGameState(g => ({
+      ...g,
+      levelIdx: startLevel,
+      budget: LEVELS[startLevel].startingBudget,
+      shop: rollShop(),
+    }));
+    setPhase('prep');
+    setResult(null);
+  }, [startLevel]);
+
+  function onStart({ board, spent }) {
+    setGameState(g => ({ ...g, budget: g.budget - spent }));
+    setGameBoard(board);
+    setPhase('game');
+  }
+
+  function onResult({ outcome }) {
+    setResult({ outcome });
+  }
+
+  function nextLevel() {
+    const idx = Math.min(gameState.levelIdx + 1, LEVELS.length - 1);
+    setGameState({
+      levelIdx: idx,
+      budget: LEVELS[idx].startingBudget + gameState.budget,
+      shop: rollShop(),
+      theme: gameState.theme,
+    });
+    setPhase('prep');
+    setResult(null);
+  }
+
+  function replay() {
+    const idx = gameState.levelIdx;
+    setGameState({
+      levelIdx: idx,
+      budget: LEVELS[idx].startingBudget,
+      shop: rollShop(),
+      theme: gameState.theme,
+    });
+    setPhase('prep');
+    setResult(null);
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {phase === 'prep' && (
+        <PrepScreen
+          gameState={gameState}
+          setGameState={setGameState}
+          onStart={onStart}
+        />
+      )}
+      {(phase === 'game' || phase === 'result') && gameBoard && (
+        <>
+          <GameScreen
+            gameState={gameState}
+            initialBoard={gameBoard}
+            onExit={() => { setPhase('prep'); setResult(null); }}
+            onResult={onResult}
+          />
+          {result && (
+            <ResultOverlay
+              outcome={result.outcome}
+              level={LEVELS[gameState.levelIdx].number}
+              budget={gameState.budget}
+              onNext={nextLevel}
+              onReplay={replay}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Mount two synced apps: one stuck on Prep, one stuck on Game ──────────
+function PrepApp({ theme, startLevel }) {
+  return <App theme={theme} startLevel={startLevel} initialPhase="prep" />;
+}
+
+// Wrapper that auto-starts the game with a pre-placed board
+function GameApp({ theme, startLevel }) {
+  const [phase, setPhase] = _uS('prep'); // 'prep' preview, then auto-advance
+  const [gameState, setGameState] = _uS(() => ({
+    levelIdx: startLevel || 0,
+    budget: LEVELS[startLevel || 0].startingBudget,
+    shop: rollShop(),
+    theme,
+  }));
+  const [gameBoard, setGameBoard] = _uS(null);
+  const [result, setResult] = _uS(null);
+
+  // Preset a demo placement so the "game" device boots mid-game
+  _uE(() => {
+    const level = LEVELS[gameState.levelIdx];
+    const b = buildLevelBoard(level);
+    // seed with some white pieces by level for an interesting start
+    const demos = [
+      // Level 1
+      [{ sq: 'd1', t: 'queen' }, { sq: 'a1', t: 'rook' }, { sq: 'h1', t: 'rook' }, { sq: 'c1', t: 'bishop' }],
+      // Level 2
+      [{ sq: 'd1', t: 'queen' }, { sq: 'f1', t: 'bishop' }, { sq: 'g1', t: 'knight' }],
+      // Level 3
+      [{ sq: 'd1', t: 'queen' }, { sq: 'a1', t: 'rook' }, { sq: 'c1', t: 'bishop' }],
+    ];
+    const demo = demos[Math.min(gameState.levelIdx, demos.length - 1)];
+    const cost = { pawn:1, knight:3, bishop:3, rook:5, queen:8 };
+    let spent = 0;
+    for (const d of demo) {
+      b[algToSq(d.sq)] = { type: d.t, color: 'w' };
+      spent += cost[d.t];
+    }
+    setGameBoard(b);
+    setGameState(g => ({ ...g, budget: g.budget - spent }));
+    setPhase('game');
+  }, [gameState.levelIdx]);
+
+  _uE(() => { setGameState(g => ({ ...g, theme })); }, [theme]);
+
+  if (phase !== 'game' || !gameBoard) {
+    return <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(255,255,255,0.3)'}}>…</div>;
+  }
+
+  function onResult({ outcome }) { setResult({ outcome }); }
+
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <GameScreen
+        gameState={gameState}
+        initialBoard={gameBoard}
+        onExit={() => {
+          // Reset the game app
+          const level = LEVELS[gameState.levelIdx];
+          const b = buildLevelBoard(level);
+          const demos = [
+            [{ sq: 'd1', t: 'queen' }, { sq: 'a1', t: 'rook' }, { sq: 'h1', t: 'rook' }, { sq: 'c1', t: 'bishop' }],
+            [{ sq: 'd1', t: 'queen' }, { sq: 'f1', t: 'bishop' }, { sq: 'g1', t: 'knight' }],
+            [{ sq: 'd1', t: 'queen' }, { sq: 'a1', t: 'rook' }, { sq: 'c1', t: 'bishop' }],
+          ];
+          const demo = demos[Math.min(gameState.levelIdx, demos.length - 1)];
+          for (const d of demo) b[algToSq(d.sq)] = { type: d.t, color: 'w' };
+          setGameBoard({ ...b });
+          setResult(null);
+        }}
+        onResult={onResult}
+      />
+      {result && (
+        <ResultOverlay
+          outcome={result.outcome}
+          level={LEVELS[gameState.levelIdx].number}
+          budget={gameState.budget}
+          onNext={() => {
+            const idx = Math.min(gameState.levelIdx + 1, LEVELS.length - 1);
+            setGameState({ levelIdx: idx, budget: LEVELS[idx].startingBudget, shop: rollShop(), theme });
+            setResult(null);
+          }}
+          onReplay={() => {
+            const level = LEVELS[gameState.levelIdx];
+            const b = buildLevelBoard(level);
+            const demos = [
+              [{ sq: 'd1', t: 'queen' }, { sq: 'a1', t: 'rook' }, { sq: 'h1', t: 'rook' }, { sq: 'c1', t: 'bishop' }],
+              [{ sq: 'd1', t: 'queen' }, { sq: 'f1', t: 'bishop' }, { sq: 'g1', t: 'knight' }],
+              [{ sq: 'd1', t: 'queen' }, { sq: 'a1', t: 'rook' }, { sq: 'c1', t: 'bishop' }],
+            ];
+            const demo = demos[Math.min(gameState.levelIdx, demos.length - 1)];
+            for (const d of demo) b[algToSq(d.sq)] = { type: d.t, color: 'w' };
+            setGameBoard(b);
+            setResult(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Wire tweaks ──────────────────────────────────────────────────────────
+function bootAll() {
+  const opts = { ...window.TWEAK_DEFAULTS };
+
+  // Apply piece set on boot
+  if (opts.pieceSet) window.setPieceSet(opts.pieceSet);
+
+  // Build piece-set picker — little tiles showing the king glyph of each set
+  function renderPicker() {
+    const host = document.getElementById('pieceset-picker');
+    host.innerHTML = '';
+    window.PIECE_SETS.forEach(s => {
+      const tile = document.createElement('button');
+      tile.dataset.v = s;
+      tile.title = window.PIECE_SET_LABELS[s];
+      tile.style.cssText = `
+        flex:1; padding:6px 4px 4px; border-radius:8px;
+        background:${s===opts.pieceSet?'rgba(125,216,125,0.14)':'rgba(255,255,255,0.04)'};
+        border:1px solid ${s===opts.pieceSet?'rgba(125,216,125,0.45)':'rgba(255,255,255,0.08)'};
+        color:rgba(232,236,242,0.85); font-family:'Inter',sans-serif;
+        font-size:10px; font-weight:600; cursor:pointer;
+        display:flex; flex-direction:column; align-items:center; gap:2px;
+      `;
+      tile.innerHTML = `
+        <img src="pieces/${s}/wN.svg" width="32" height="32" style="display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3))" />
+        <span>${window.PIECE_SET_LABELS[s]}</span>
+      `;
+      host.appendChild(tile);
+    });
+  }
+
+  function mount() {
+    ReactDOM.createRoot(document.getElementById('app-prep')).render(
+      <PrepApp theme={opts.theme} startLevel={opts.startLevel} />
+    );
+    ReactDOM.createRoot(document.getElementById('app-game')).render(
+      <GameApp theme={opts.theme} startLevel={opts.startLevel} />
+    );
+  }
+  mount();
+
+  // Highlight active tweak buttons
+  function syncSeg(id, key) {
+    const seg = document.getElementById(id);
+    [...seg.children].forEach(b => {
+      b.classList.toggle('active', String(b.dataset.v) === String(opts[key]));
+    });
+  }
+  function applyAll() {
+    syncSeg('theme-seg', 'theme');
+    syncSeg('level-seg', 'startLevel');
+    mount();
+    window.parent?.postMessage({ type: '__edit_mode_set_keys', edits: opts }, '*');
+  }
+
+  document.getElementById('theme-seg').addEventListener('click', (e) => {
+    const v = e.target.closest('button')?.dataset.v;
+    if (!v) return;
+    opts.theme = v; applyAll();
+  });
+  document.getElementById('level-seg').addEventListener('click', (e) => {
+    const v = e.target.closest('button')?.dataset.v;
+    if (v == null) return;
+    opts.startLevel = +v; applyAll();
+  });
+  document.getElementById('pieceset-picker').addEventListener('click', (e) => {
+    const v = e.target.closest('button')?.dataset.v;
+    if (!v) return;
+    opts.pieceSet = v;
+    window.setPieceSet(v);
+    renderPicker();
+    window.parent?.postMessage({ type: '__edit_mode_set_keys', edits: opts }, '*');
+  });
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    mount();
+  });
+
+  syncSeg('theme-seg', 'theme');
+  syncSeg('level-seg', 'startLevel');
+  renderPicker();
+}
+
+// Edit-mode protocol
+window.addEventListener('message', (ev) => {
+  const d = ev.data || {};
+  if (d.type === '__activate_edit_mode') document.getElementById('tweaks').classList.add('on');
+  else if (d.type === '__deactivate_edit_mode') document.getElementById('tweaks').classList.remove('on');
+});
+window.parent?.postMessage({ type: '__edit_mode_available' }, '*');
+
+// Sound toggle
+const soundBtn = document.getElementById('sound-btn');
+const sOn = document.getElementById('sound-on');
+const sOff = document.getElementById('sound-off');
+let muted = false;
+try { muted = localStorage.getItem('chess-muted') === '1'; } catch (e) {}
+window.sfx?.mute(muted);
+soundBtn.classList.toggle('muted', muted);
+sOn.style.display  = muted ? 'none' : 'block';
+sOff.style.display = muted ? 'block' : 'none';
+soundBtn.addEventListener('click', () => {
+  muted = !muted;
+  window.sfx?.mute(muted);
+  try { localStorage.setItem('chess-muted', muted ? '1' : '0'); } catch (e) {}
+  soundBtn.classList.toggle('muted', muted);
+  sOn.style.display  = muted ? 'none' : 'block';
+  sOff.style.display = muted ? 'block' : 'none';
+  if (!muted) window.sfx?.click();
+});
+
+// Wait for all babel scripts to be ready
+function whenReady(cb) {
+  if (window.PrepScreen && window.GameScreen && window.ChessBoard && window.ChessPiece) cb();
+  else setTimeout(() => whenReady(cb), 50);
+}
+whenReady(bootAll);
+</script>
+
+</body>
+</html>
