@@ -8,6 +8,42 @@ import ChessPiece from './ChessPiece.jsx';
 import TopBar from './TopBar.jsx';
 import sfx from '../sfx.js';
 
+const PIECE_VALUE = { pawn: 100, knight: 320, bishop: 330, rook: 500, queen: 900, king: 20000 };
+
+function evalBoard(board) {
+  let score = 0;
+  for (const p of Object.values(board)) {
+    const v = PIECE_VALUE[p.type] || 0;
+    score += p.color === 'b' ? v : -v;
+  }
+  return score;
+}
+
+function negamax(board, color, info, depth) {
+  if (depth === 0) return color === 'b' ? evalBoard(board) : -evalBoard(board);
+  const moves = allLegalMoves(board, color, info);
+  if (moves.length === 0) return -100000;
+  let best = -Infinity;
+  for (const m of moves) {
+    const r = applyMove(board, m.from, m.to, 'queen', info);
+    const score = -negamax(r.board, color === 'b' ? 'w' : 'b', { enPassant: r.enPassant, castling: r.castling }, depth - 1);
+    if (score > best) best = score;
+  }
+  return best;
+}
+
+function bestFallbackMove(board, info) {
+  const moves = allLegalMoves(board, 'b', info);
+  if (moves.length === 0) return null;
+  let best = null, bestScore = -Infinity;
+  for (const m of moves) {
+    const r = applyMove(board, m.from, m.to, 'queen', info);
+    const score = -negamax(r.board, 'w', { enPassant: r.enPassant, castling: r.castling }, 2);
+    if (score > bestScore) { bestScore = score; best = m; }
+  }
+  return best;
+}
+
 export default function GameScreen({ gameState, initialBoard, onExit, onResult }) {
   const level = LEVELS[gameState.levelIdx];
   const [board, setBoard] = useState(initialBoard);
@@ -59,11 +95,9 @@ export default function GameScreen({ gameState, initialBoard, onExit, onResult }
     function playFallback() {
       if (done) return;
       done = true;
-      const moves = allLegalMoves(board, 'b', gameInfo);
-      if (moves.length === 0) { setThinking(false); return; }
-      const caps = moves.filter(m => board[m.to]);
-      const { from, to } = (caps.length ? caps : moves)[Math.floor(Math.random() * (caps.length || moves.length))];
-      doMove(from, to, 'b', 'queen');
+      const move = bestFallbackMove(board, gameInfo);
+      if (!move) { setThinking(false); return; }
+      doMove(move.from, move.to, 'b', 'queen');
       setThinking(false);
     }
 
