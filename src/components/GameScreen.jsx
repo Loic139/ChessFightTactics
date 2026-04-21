@@ -54,16 +54,34 @@ export default function GameScreen({ gameState, initialBoard, onExit, onResult }
     if (turn !== 'b' || status === 'checkmate' || status === 'stalemate' || pendingPromo) return;
     setThinking(true);
     const fen = boardToFen(board, 'b', gameInfo.castling, gameInfo.enPassant);
+    let done = false;
+
+    function playFallback() {
+      if (done) return;
+      done = true;
+      const moves = allLegalMoves(board, 'b', gameInfo);
+      if (moves.length === 0) { setThinking(false); return; }
+      const caps = moves.filter(m => board[m.to]);
+      const { from, to } = (caps.length ? caps : moves)[Math.floor(Math.random() * (caps.length || moves.length))];
+      doMove(from, to, 'b', 'queen');
+      setThinking(false);
+    }
+
+    const fallbackTimer = setTimeout(playFallback, 5000);
+
     getBestMove(
       fen,
       { skillLevel: SKILL[Math.min(levelIdx, 2)], depth: DEPTH[Math.min(levelIdx, 2)] },
       (uciMove) => {
+        if (done) return;
+        done = true;
+        clearTimeout(fallbackTimer);
         const { from, to, promo } = parseUciMove(uciMove);
         doMove(from, to, 'b', promo || 'queen');
         setThinking(false);
       }
     );
-    return () => stopSearch();
+    return () => { stopSearch(); clearTimeout(fallbackTimer); };
   }, [turn, board, status, pendingPromo]);
 
   function doMove(from, to, side, promo) {
